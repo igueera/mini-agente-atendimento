@@ -39,3 +39,5 @@ Projeto criado para estudo de:
 - Python
 - APIs
 - Lógica de agentes
+# internal-projects-
+Test projects for the agency's initial setup.
