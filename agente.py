@@ -1,4 +1,4 @@
-from knowledge_base import knowledge
+from database import buscar_conhecimento
 from utils import limpar_texto
 
 def buscar_resposta(pergunta):
@@ -6,7 +6,9 @@ def buscar_resposta(pergunta):
     palavras = pergunta.split()
     categorias_detectadas = []
 
-    for nome_categoria, categoria in knowledge.items():
+    conhecimento = buscar_conhecimento()
+
+    for categoria in conhecimento:
         pontuacao = 0
 
         for keyword in categoria["keywords"]:
@@ -17,13 +19,8 @@ def buscar_resposta(pergunta):
             categorias_detectadas.append((pontuacao, categoria["resposta"]))
 
     if categorias_detectadas:
-        # ordenar da maior pontuação para a menor
         categorias_detectadas.sort(key=lambda x: x[0], reverse=True)
-
-        respostas_ordenadas = [
-            resposta for pontuacao, resposta in categorias_detectadas
-        ]
-
+        respostas_ordenadas = [resposta for pontuacao, resposta in categorias_detectadas]
         return "\n\n".join(respostas_ordenadas)
 
     return "Desculpe, não entendi sua pergunta."
