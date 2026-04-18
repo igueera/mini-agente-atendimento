@@ -6,13 +6,18 @@ from database import (
     buscar_historico, popular_conhecimento
 )
 import requests  # Para fazer requisições HTTP para a Evolution API
+import os
+from dotenv import load_dotenv
+
 
 app = Flask(__name__)
 
 
-EVOLUTION_URL = "http://localhost:8080"        # Endereço da Evolution API (roda no Docker)
-EVOLUTION_KEY = "minha-chave-secreta-123"      # Chave de autenticação definida no docker-compose
-INSTANCE_NAME = "final1"                       # Nome da instância criada na Evolution API
+load_dotenv()
+
+EVOLUTION_URL = os.getenv("EVOLUTION_URL", "http://localhost:8080")
+EVOLUTION_KEY = os.getenv("EVOLUTION_KEY")
+INSTANCE_NAME = os.getenv("INSTANCE_NAME", "final1")
 
 # Conjunto para evitar processar a mesma mensagem duas vezes
 # (o webhook pode disparar duplicado em algumas situações)
