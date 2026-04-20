@@ -12,7 +12,7 @@ load_dotenv()
 cliente = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Modelo utilizado — llama3 é rápido e muito capaz
-MODELO = "llama3-8b-8192"
+MODELO = "llama-3.3-70b-versatile"
 
 def gerar_resposta(pergunta: str, contexto: str) -> str:
     """
