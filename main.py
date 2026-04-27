@@ -2,13 +2,19 @@
 # Arquivo principal da aplicação - define as rotas HTTP e integração com WhatsApp
 
 from flask import Flask, request, jsonify
-from agente import buscar_resposta
-from llm import gerar_resposta  # Geração de resposta natural via Groq
+from rag import buscar_contexto
+from llm import gerar_resposta
 from database import (
-    criar_tabela, criar_tabela_conhecimento,
+    criar_tabela, criar_tabela_conhecimento, criar_tabela_memoria,
     adicionar_conhecimento, salvar_conversa,
-    buscar_historico, popular_conhecimento
+    buscar_historico, popular_conhecimento,
+    buscar_memoria, salvar_memoria
 )
+# ── Por que importar buscar_memoria e salvar_memoria? ────
+# São as duas novas funções do database.py que criamos.
+# buscar_memoria traz o histórico do cliente antes de responder.
+# salvar_memoria atualiza o histórico após cada resposta.
+# ─────────────────────────────────────────────────────────
 import requests
 import os
 from dotenv import load_dotenv
@@ -25,7 +31,6 @@ EVOLUTION_KEY = os.getenv("EVOLUTION_KEY")
 INSTANCE_NAME = os.getenv("INSTANCE_NAME", "final1")
 
 # Evita processar a mesma mensagem duas vezes
-# (o webhook pode disparar duplicado em algumas situações)
 mensagens_processadas = set()
 
 
@@ -53,11 +58,27 @@ def pergunta():
     if not mensagem.strip():
         return jsonify({"erro": "Mensagem não pode estar vazia"}), 400
 
-    # Passo 1: busca semântica encontra o contexto relevante no banco
-    contexto = buscar_resposta(mensagem)
+    # ── Por que usar "teste" como número fixo aqui? ──────
+    # A rota /pergunta é para testes via Postman/HTTP,
+    # sem um número de WhatsApp real. Usamos "teste" como
+    # identificador fixo para que o histórico de teste
+    # fique separado dos históricos reais de clientes.
+    # ─────────────────────────────────────────────────────
+    numero_teste = "teste"
+    historico = buscar_memoria(numero_teste)
 
-    # Passo 2: LLM gera uma resposta natural baseada no contexto
-    resposta = gerar_resposta(mensagem, contexto)
+    contexto = buscar_contexto(mensagem)
+    resposta = gerar_resposta(mensagem, contexto, historico)
+
+    # ── Por que atualizar o histórico após responder? ────
+    # O histórico é uma lista crescente de mensagens.
+    # Após cada troca, adicionamos a pergunta do usuário
+    # e a resposta do assistente — mantendo o formato
+    # que o LLM espera: role "user" e role "assistant".
+    # ─────────────────────────────────────────────────────
+    historico.append({"role": "user", "content": mensagem})
+    historico.append({"role": "assistant", "content": resposta})
+    salvar_memoria(numero_teste, historico)
 
     salvar_conversa(mensagem, resposta)
     return jsonify({"resposta": resposta})
@@ -81,7 +102,6 @@ def historico():
 
 # ─────────────────────────────────────────────
 # ROTA /conhecimento - Adiciona nova resposta ao banco
-# Permite adicionar categorias sem mexer no código
 # ─────────────────────────────────────────────
 @app.route("/conhecimento", methods=["POST"])
 def adicionar():
@@ -99,30 +119,24 @@ def adicionar():
 
 # ─────────────────────────────────────────────
 # ROTA /webhook - Recebe mensagens do WhatsApp
-# A Evolution API chama esta rota automaticamente
-# quando alguém manda mensagem para o número conectado
 # ─────────────────────────────────────────────
 @app.route("/webhook", methods=["POST"])
 def webhook():
     dados = request.get_json()
 
-    # Ignora eventos que não são mensagens novas
     if not dados or dados.get("event") != "messages.upsert":
         return jsonify({"status": "ignorado"}), 200
 
     mensagem_obj = dados.get("data", {})
 
-    # Ignora mensagens enviadas pelo próprio bot (evita loop infinito)
     if mensagem_obj.get("key", {}).get("fromMe"):
         return jsonify({"status": "ignorado"}), 200
 
-    # Evita processar a mesma mensagem duas vezes
     msg_id = mensagem_obj.get("key", {}).get("id")
     if msg_id in mensagens_processadas:
         return jsonify({"status": "duplicado"}), 200
     mensagens_processadas.add(msg_id)
 
-    # Extrai número e texto da mensagem
     remoteJid = mensagem_obj.get("key", {}).get("remoteJid")
     texto = (
         mensagem_obj.get("message", {}).get("conversation") or
@@ -132,9 +146,7 @@ def webhook():
     if not texto or not remoteJid:
         return jsonify({"status": "ignorado"}), 200
 
-    # ── Resolução de @lid ──────────────────────────────────
-    # O WhatsApp usa IDs anônimos (@lid) para contatos novos.
-    # Tentamos resolver para o número real via Evolution API.
+    # Resolução de @lid
     if "@lid" in remoteJid:
         try:
             res = requests.post(
@@ -156,16 +168,30 @@ def webhook():
     print("Número:", numero)
     print("Texto:", texto)
 
-    # Passo 1: busca semântica encontra o contexto relevante no banco
-    contexto = buscar_resposta(texto)
+    # ── Por que buscar a memória pelo número? ────────────
+    # Cada cliente tem seu próprio histórico identificado
+    # pelo número de telefone. Assim o agente lembra o
+    # contexto de cada pessoa separadamente — o histórico
+    # do cliente A não se mistura com o do cliente B.
+    # ─────────────────────────────────────────────────────
+    historico = buscar_memoria(numero)
 
-    # Passo 2: LLM gera uma resposta natural baseada no contexto
-    resposta = gerar_resposta(texto, contexto)
+    contexto = buscar_contexto(texto)
+    resposta = gerar_resposta(texto, contexto, historico)
+
+    # ── Por que salvar antes de enviar? ──────────────────
+    # Salvamos o histórico atualizado antes de enviar a
+    # resposta ao WhatsApp. Se o envio falhar por algum
+    # motivo, o histórico já está salvo e a próxima mensagem
+    # do cliente ainda terá contexto correto.
+    # ─────────────────────────────────────────────────────
+    historico.append({"role": "user", "content": texto})
+    historico.append({"role": "assistant", "content": resposta})
+    salvar_memoria(numero, historico)
 
     salvar_conversa(texto, resposta)
     print("Resposta:", resposta)
 
-    # Envia resposta de volta ao WhatsApp via Evolution API
     resultado = requests.post(
         f"{EVOLUTION_URL}/message/sendText/{INSTANCE_NAME}",
         headers={"apikey": EVOLUTION_KEY, "Content-Type": "application/json"},
@@ -180,8 +206,8 @@ def webhook():
 # INICIALIZAÇÃO DA APLICAÇÃO
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
-    criar_tabela()              # Cria tabela de histórico de conversas
-    criar_tabela_conhecimento() # Cria tabela de base de conhecimento
-    popular_conhecimento()      # Popula com respostas iniciais se estiver vazia
+    criar_tabela()
+    criar_tabela_conhecimento()
+    criar_tabela_memoria()      # Cria a nova tabela de memória por número
+    popular_conhecimento()
     app.run(debug=True, port=5000, host="0.0.0.0")
-    # host="0.0.0.0" permite que o Docker acesse o Flask
