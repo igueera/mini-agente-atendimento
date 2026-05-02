@@ -5,6 +5,7 @@
 
 from docx import Document
 from docx.oxml.ns import qn
+from dotenv import load_dotenv
 from docx.text.paragraph import Paragraph as DocxParagraph
 from docx.table import Table as DocxTable
 from sentence_transformers import SentenceTransformer
@@ -12,11 +13,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import os
 
+load_dotenv()
+
 # Modelo multilingual — o mesmo já usado no projeto
 modelo = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 # Caminho do documento (na mesma pasta do projeto)
-CAMINHO_DOCUMENTO = os.path.join(os.path.dirname(__file__), "academia_forcamax.docx")
+CAMINHO_DOCUMENTO = os.path.join(os.path.dirname(__file__), os.getenv("DOCUMENTO_PATH", "academia_forcamax.docx"))
 
 
 def extrair_texto_docx(caminho: str) -> list[str]:
