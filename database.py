@@ -150,3 +150,17 @@ def adicionar_conhecimento(categoria, keywords, resposta):
     """, (categoria, keywords, resposta))
     conn.commit()
     conn.close()
+
+
+def limpar_memorias_antigas(horas: int = 24):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM memoria
+        WHERE atualizado_em < datetime('now', ? || ' hours')
+    """, (f"-{horas}",))
+    removidos = cursor.rowcount
+    conn.commit()
+    conn.close()
+    if removidos > 0:
+        print(f"Limpeza de memória: {removidos} conversa(s) antiga(s) removida(s).")
