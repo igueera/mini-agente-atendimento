@@ -1,5 +1,8 @@
 import sqlite3
 import json
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def conectar():
@@ -163,4 +166,4 @@ def limpar_memorias_antigas(horas: int = 24):
     conn.commit()
     conn.close()
     if removidos > 0:
-        print(f"Limpeza de memória: {removidos} conversa(s) antiga(s) removida(s).")
+        logger.info(f"Limpeza de memória: {removidos} conversa(s) antiga(s) removida(s).")

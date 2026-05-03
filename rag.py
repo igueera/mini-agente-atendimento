@@ -1,4 +1,3 @@
-# rag.py
 # Pipeline completo do RAG (Retrieval-Augmented Generation)
 # Responsável por: ler o documento, dividir em chunks,
 # gerar embeddings e buscar os trechos mais relevantes para uma pergunta
@@ -10,10 +9,12 @@ from docx.text.paragraph import Paragraph as DocxParagraph
 from docx.table import Table as DocxTable
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from logger import get_logger
 import numpy as np
 import os
 
 load_dotenv()
+logger = get_logger(__name__)
 
 # Modelo multilingual — o mesmo já usado no projeto
 modelo = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
@@ -68,7 +69,7 @@ def carregar_base() -> tuple[list[str], np.ndarray]:
     """
     paragrafos = extrair_texto_docx(CAMINHO_DOCUMENTO)
     chunks = criar_chunks(paragrafos, tamanho=3)
-    print(f"Base carregada: {len(chunks)} chunks gerados do documento.")
+    logger.info(f"Base carregada: {len(chunks)} chunks gerados do documento.")
     embeddings = modelo.encode(chunks, convert_to_numpy=True)
     return chunks, embeddings
 

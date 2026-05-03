@@ -10,8 +10,11 @@ from database import (
 import requests
 import os
 from dotenv import load_dotenv
+from logger import get_logger
 
 load_dotenv()
+logger = get_logger(__name__)
+
 
 app = Flask(__name__)
 
@@ -125,8 +128,8 @@ def webhook():
     else:
         numero = remoteJid
 
-    print("Número:", numero)
-    print("Texto:", texto)
+    logger.info(f"Número: {numero}")
+    logger.info(f"Texto: {texto}")
 
     historico = buscar_memoria(numero)
     contexto = buscar_contexto(texto)
@@ -136,14 +139,15 @@ def webhook():
     salvar_memoria(numero, historico)
 
     salvar_conversa(texto, resposta)
-    print("Resposta:", resposta)
+    logger.info(f"Resposta: {resposta}")
 
     resultado = requests.post(
         f"{EVOLUTION_URL}/message/sendText/{INSTANCE_NAME}",
         headers={"apikey": EVOLUTION_KEY, "Content-Type": "application/json"},
         json={"number": numero, "text": resposta}
     )
-    print("Status envio:", resultado.status_code)
+    logger.info(f"Status envio: {resultado.status_code}")
+
 
     return jsonify({"status": "ok"}), 200
 
