@@ -82,8 +82,12 @@ def buscar_chunks_relevantes(pergunta: str, chunks: list[str], embeddings: np.nd
     return contexto
 
 
-chunks_base, embeddings_base = carregar_base()
-
+chunks_base = None
+embeddings_base = None
 
 def buscar_contexto(pergunta: str) -> str:
+    global chunks_base, embeddings_base
+    if chunks_base is None or embeddings_base is None:
+        logger.info("Carregando base de conhecimento pela primeira vez...")
+        chunks_base, embeddings_base = carregar_base()
     return buscar_chunks_relevantes(pergunta, chunks_base, embeddings_base, top_k=5)
